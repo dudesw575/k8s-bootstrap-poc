@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/your-username/k8s-bootstrap-poc
+    repoURL: https://github.com/dudesw575/k8s-bootstrap-poc
     targetRevision: HEAD
     path: apps
     directory:

@@ -53,24 +53,24 @@ ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
 
 echo "✅ ArgoCD admin password: $ARGOCD_PASSWORD"
 
-# Step 5: Install ArgoCD CLI
-if ! command -v argocd &> /dev/null; then
-    echo "📥 Installing ArgoCD CLI..."
+# # Step 5: Install ArgoCD CLI
+# if ! command -v argocd &> /dev/null; then
+#     echo "📥 Installing ArgoCD CLI..."
     
-    OS=$(uname | tr '[:upper:]' '[:lower:]')
-    ARCH=$(uname -m)
-    if [[ "$ARCH" == "x86_64" ]]; then ARCH="amd64"; fi
-    if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then ARCH="arm64"; fi
+#     OS=$(uname | tr '[:upper:]' '[:lower:]')
+#     ARCH=$(uname -m)
+#     if [[ "$ARCH" == "x86_64" ]]; then ARCH="amd64"; fi
+#     if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then ARCH="arm64"; fi
 
-    VERSION=$(curl -s https://api.github.com/repos/argoproj/argo-cd/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
-    CLI_URL="https://github.com/argoproj/argo-cd/releases/download/v$VERSION/argocd-$OS-$ARCH"
+#     VERSION=$(curl -s https://api.github.com/repos/argoproj/argo-cd/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+#     CLI_URL="https://github.com/argoproj/argo-cd/releases/download/v$VERSION/argocd-$OS-$ARCH"
 
-    curl -sSL -o /usr/local/bin/argocd "$CLI_URL"
-    chmod +x /usr/local/bin/argocd
-    echo "✅ ArgoCD CLI installed at /usr/local/bin/argocd"
-else
-    echo "✅ ArgoCD CLI already installed"
-fi
+#     curl -sSL -o /usr/local/bin/argocd "$CLI_URL"
+#     chmod +x /usr/local/bin/argocd
+#     echo "✅ ArgoCD CLI installed at /usr/local/bin/argocd"
+# else
+#     echo "✅ ArgoCD CLI already installed"
+# fi
 
 # Step 6: Output access instructions
 echo ""
