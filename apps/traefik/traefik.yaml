@@ -42,6 +42,8 @@ spec:
           prometheus:
             service:
               enabled: true
+        image:
+          tag: "v3.5"
   destination:
     server: https://kubernetes.default.svc
     namespace: traefik
