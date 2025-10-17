@@ -14,7 +14,6 @@ spec:
     helm:
       values: |
         defaultSettings:
-          defaultReplicaCount: 1
           guaranteedEngineManagerCPU: 0
           guaranteedReplicaManagerCPU: 0
           createDefaultDiskLabeledNodes: true
