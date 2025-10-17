@@ -13,10 +13,6 @@ spec:
     targetRevision: "37.1.2"
     helm:
       values: |
-        image:
-          tag: "v3.5"
-          pullPolicy: IfNotPresent
-
         deployment:
           replicas: 1
         
