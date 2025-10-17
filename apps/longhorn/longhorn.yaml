@@ -20,12 +20,6 @@ spec:
         persistence:
           defaultClass: true
           defaultClassReplicaCount: 1
-        csi:
-          kubeletRootDir: /var/lib/kubelet
-        longhornManager:
-          priorityClass: ~
-        longhornDriver:
-          priorityClass: ~
         ingress:
           enabled: true
           ingressClassName: traefik
