@@ -1,0 +1,163 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "78.3.1"
+    helm:
+      values: |
+        # Prometheus configuration
+        prometheus:
+          prometheusSpec:
+            retention: "15d"
+            retentionSize: "10GB"
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: longhorn
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 20Gi
+            # Enable Istio metrics scraping
+            additionalScrapeConfigs:
+            - job_name: 'istio-mesh'
+              kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                  - istio-system
+              relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: istio-proxy;http-monitoring
+            - job_name: 'envoy-stats'
+              metrics_path: /stats/prometheus
+              kubernetes_sd_configs:
+              - role: pod
+              relabel_configs:
+              - source_labels: [__meta_kubernetes_pod_container_port_name]
+                action: keep
+                regex: '.*-envoy-prom'
+        
+        # Grafana configuration
+        grafana:
+          enabled: true
+          adminPassword: "admin123"  # Change this in production!
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          persistence:
+            enabled: true
+            storageClassName: longhorn
+            size: 5Gi
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            hosts:
+            - grafana.localhost
+            annotations:
+              kubernetes.io/ingress.class: traefik
+              traefik.ingress.kubernetes.io/router.entrypoints: web
+          # Pre-configure dashboards
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+              - name: 'istio'
+                orgId: 1
+                folder: 'Istio'
+                type: file
+                disableDeletion: false
+                editable: true
+                options:
+                  path: /var/lib/grafana/dashboards/istio
+          dashboards:
+            istio:
+              istio-mesh: 
+                gnetId: 7639
+                revision: 1
+                datasource: Prometheus
+              istio-service:
+                gnetId: 7636
+                revision: 1
+                datasource: Prometheus
+              istio-workload:
+                gnetId: 7630
+                revision: 1
+                datasource: Prometheus
+        
+        # AlertManager configuration
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: longhorn
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 2Gi
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            hosts:
+            - alertmanager.localhost
+            annotations:
+              kubernetes.io/ingress.class: traefik
+              traefik.ingress.kubernetes.io/router.entrypoints: web
+        
+        # Node exporter
+        nodeExporter:
+          enabled: true
+        
+        # Kube state metrics
+        kubeStateMetrics:
+          enabled: true
+        
+        # Prometheus operator
+        prometheusOperator:
+          enabled: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true

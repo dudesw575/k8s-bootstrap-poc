@@ -1,0 +1,120 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: falco
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"
+spec:
+  project: default
+  source:
+    repoURL: https://falcosecurity.github.io/charts
+    chart: falco
+    targetRevision: "6.4.0"
+    helm:
+      values: |
+        # Falco configuration
+        falco:
+          rules_file:
+            - /etc/falco/falco_rules.yaml
+            - /etc/falco/falco_rules.local.yaml
+            - /etc/falco/k8s_audit_rules.yaml
+            - /etc/falco/rules.d
+          
+          # Output channels
+          file_output:
+            enabled: true
+            keep_alive: false
+            filename: ./events.txt
+          
+          stdout_output:
+            enabled: true
+          
+          syslog_output:
+            enabled: false
+          
+          # Webserver for metrics
+          webserver:
+            enabled: true
+            listen_port: 8765
+            k8s_healthz_endpoint: /healthz
+            ssl_enabled: false
+          
+          # Metrics
+          metrics:
+            enabled: true
+            interval: 1h
+            output_rule: true
+            rules_counters_enabled: true
+            resource_utilization_enabled: true
+            state_counters_enabled: true
+            kernel_event_counters_enabled: true
+            libbpf_stats_enabled: true
+          
+          # Performance tuning for KIND
+          syscall_event_drops:
+            max_burst: 1000
+            rate: 1000
+          
+          # Resource limits
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+        
+        # Driver configuration (use modern eBPF for KIND)
+        driver:
+          enabled: true
+          kind: ebpf
+        
+        # Controller configuration
+        controller:
+          kind: daemonset
+          daemonset:
+            updateStrategy:
+              type: RollingUpdate
+        
+        # Service Monitor for Prometheus
+        serviceMonitor:
+          enabled: true
+        
+        # Grafana dashboards
+        grafanaDashboard:
+          enabled: true
+          namespace: monitoring
+          prometheusDatasource:
+            uid: prometheus
+        
+        # Custom rules for demo environment
+        customRules:
+          rules-demo.yaml: |-
+            - rule: Sensitive file opened for reading
+              desc: an attempt to read any sensitive file (e.g. files containing user/password/authentication information)
+              condition: >
+                open_read and fd.typechar='f' and
+                (fd.filename in (sensitive_files) or
+                fd.directory in (/etc/sudoers.d, /etc/pam.d)) and
+                not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
+                cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
+                vpn_binaries, mail_config_binaries, nomachine_binaries, sshkit_script_binaries,
+                in.proftpd, mandb, salt-minion, postgres_mgmt_binaries,
+                google_osconfig_agent, azure_mgmt_binaries, exe_running_docker_save,
+                exe_running_docker_save, consul)
+              output: >
+                Sensitive file opened for reading (user=%user.name user_loginuid=%user.loginuid
+                command=%proc.cmdline file=%fd.name parent=%proc.pname pcmdline=%proc.pcmdline gparent=%proc.aname[2] container_id=%container.id image=%container.image.repository)
+              priority: WARNING
+              tags: [filesystem, mitre_credential_access, mitre_discovery]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: falco
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - Replace=true
