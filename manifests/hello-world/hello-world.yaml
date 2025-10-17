@@ -1,24 +1,96 @@
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: hello-world
+#   labels:
+#     istio-injection: enabled
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: hello-world
+#   namespace: hello-world
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: hello-world
+#   template:
+#     metadata:
+#       labels:
+#         app: hello-world
+#     spec:
+#       containers:
+#       - name: hello-world
+#         image: nginxdemos/hello
+#         ports:
+#         - containerPort: 80
+#         resources:
+#           requests:
+#             cpu: 10m
+#             memory: 16Mi
+#           limits:
+#             cpu: 100m
+#             memory: 64Mi
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: hello-world
+#   namespace: hello-world
+# spec:
+#   selector:
+#     app: hello-world
+#   ports:
+#   - port: 80
+#     targetPort: 80
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: hello-world
+#   namespace: hello-world
+#   annotations:
+#     kubernetes.io/ingress.class: traefik
+#     traefik.ingress.kubernetes.io/router.entrypoints: web
+# spec:
+#   rules:
+#   - host: hello.localhost
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: hello-world
+#             port:
+#               number: 80
 apiVersion: v1
 kind: Namespace
 metadata:
   name: hello-world
   labels:
-    istio-injection: enabled
+    istio-injection: enabled  # Enable Istio sidecar injection
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hello-world
+  name: hello-world-v1
   namespace: hello-world
+  labels:
+    app: hello-world
+    version: v1
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: hello-world
+      version: v1
   template:
     metadata:
       labels:
         app: hello-world
+        version: v1
     spec:
       containers:
       - name: hello-world
@@ -33,17 +105,76 @@ spec:
             cpu: 100m
             memory: 64Mi
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world-v2
+  namespace: hello-world
+  labels:
+    app: hello-world
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-world
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: hello-world
+        version: v2
+    spec:
+      containers:
+      - name: hello-world
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: html
+        configMap:
+          name: hello-world-v2-html
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-world-v2-html
+  namespace: hello-world
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head><title>Hello World v2</title></head>
+    <body>
+    <h1>Hello from Version 2!</h1>
+    <p>This is the v2 version of our app</p>
+    </body>
+    </html>
+---
 apiVersion: v1
 kind: Service
 metadata:
   name: hello-world
   namespace: hello-world
+  labels:
+    app: hello-world
 spec:
   selector:
     app: hello-world
   ports:
   - port: 80
     targetPort: 80
+    name: http
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -65,3 +196,47 @@ spec:
             name: hello-world
             port:
               number: 80
+---
+# Istio VirtualService for traffic splitting (optional)
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: hello-world
+  namespace: hello-world
+spec:
+  hosts:
+  - hello-world
+  http:
+  - match:
+    - headers:
+        version:
+          exact: v2
+    route:
+    - destination:
+        host: hello-world
+        subset: v2
+  - route:
+    - destination:
+        host: hello-world
+        subset: v1
+      weight: 80
+    - destination:
+        host: hello-world
+        subset: v2
+      weight: 20
+---
+# Istio DestinationRule for subsets
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: hello-world
+  namespace: hello-world
+spec:
+  host: hello-world
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
