@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: "1.5.3"
+    helm:
+      values: |
+        defaultSettings:
+          defaultReplicaCount: 1
+          guaranteedEngineManagerCPU: 0
+          guaranteedReplicaManagerCPU: 0
+          createDefaultDiskLabeledNodes: true
+        persistence:
+          defaultClass: true
+          defaultClassReplicaCount: 1
+        csi:
+          kubeletRootDir: /var/lib/kubelet
+        longhornManager:
+          priorityClass: ~
+        longhornDriver:
+          priorityClass: ~
+        ingress:
+          enabled: true
+          ingressClassName: traefik
+          host: longhorn.localhost
+          annotations:
+            traefik.ingress.kubernetes.io/router.entrypoints: web
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - Replace=true
